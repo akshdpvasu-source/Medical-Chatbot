@@ -7,16 +7,22 @@ from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_groq import ChatGroq
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
+
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
+
 app = Flask(__name__)
 
-INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "medical-chatbot")
+INDEX_NAME = os.getenv(
+    "PINECONE_INDEX_NAME",
+    "medical-chatbot"
+)
+
 GROQ_MODEL = os.getenv(
     "GROQ_MODEL",
     "llama-3.3-70b-versatile"
@@ -24,19 +30,33 @@ GROQ_MODEL = os.getenv(
 
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+HUGGINGFACEHUB_API_TOKEN = os.getenv(
+    "HUGGINGFACEHUB_API_TOKEN"
+)
+
 
 if not PINECONE_API_KEY:
     raise ValueError(
-        "PINECONE_API_KEY is missing from the .env file."
+        "PINECONE_API_KEY is missing from the environment variables."
     )
 
 if not GROQ_API_KEY:
     raise ValueError(
-        "GROQ_API_KEY is missing from the .env file."
+        "GROQ_API_KEY is missing from the environment variables."
     )
-embedding = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
+
+if not HUGGINGFACEHUB_API_TOKEN:
+    raise ValueError(
+        "HUGGINGFACEHUB_API_TOKEN is missing from the "
+        "environment variables."
+    )
+
+embedding = HuggingFaceEndpointEmbeddings(
+    model="sentence-transformers/all-MiniLM-L6-v2",
+    task="feature-extraction",
+    huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN
 )
+
 
 pinecone_client = Pinecone(
     api_key=PINECONE_API_KEY
@@ -50,7 +70,11 @@ if INDEX_NAME not in existing_indexes:
         f"Available indexes: {existing_indexes}"
     )
 
-docsearch = PineconeVectorStore(
+
+# Connect to the already-created Pinecone index.
+# This does not upload the PDF or recreate the vectors.
+
+docsearch = PineconeVectorStore.from_existing_index(
     index_name=INDEX_NAME,
     embedding=embedding
 )
@@ -59,11 +83,13 @@ retriever = docsearch.as_retriever(
     search_type="similarity",
     search_kwargs={"k": 6}
 )
-ChatModel = ChatGroq(
+
+chat_model = ChatGroq(
     model=GROQ_MODEL,
     temperature=0.2,
     max_tokens=1000,
-    groq_api_key=GROQ_API_KEY
+    groq_api_key=GROQ_API_KEY,
+    max_retries=2
 )
 system_prompt = """
 You are a medical information assistant.
@@ -93,8 +119,7 @@ Describe appropriate prevention or risk-reduction measures.
 Briefly describe general treatment or management information.
 
 ## When to Seek Medical Help
-Mention warning signs that require professional or emergency
-care.
+Mention warning signs that require professional or emergency care.
 
 Rules:
 
@@ -105,8 +130,8 @@ Rules:
 - Do not claim prevention is guaranteed.
 - If information is not covered by the supplied context, say:
   "Not specified in the provided medical document."
-- For serious symptoms, advise consulting a qualified
-  healthcare professional or emergency service.
+- For serious symptoms, advise consulting a qualified healthcare
+  professional or emergency service.
 - Do not reveal internal reasoning.
 
 Medical context:
@@ -121,7 +146,7 @@ prompt = ChatPromptTemplate.from_messages(
 )
 
 question_answer_chain = create_stuff_documents_chain(
-    ChatModel,
+    chat_model,
     prompt
 )
 
@@ -129,6 +154,9 @@ rag_chain = create_retrieval_chain(
     retriever,
     question_answer_chain
 )
+
+
+
 def extract_user_message() -> str:
     """Read the user's message from JSON or form data."""
 
@@ -154,10 +182,11 @@ def extract_user_message() -> str:
 
     return str(message).strip()
 
+
 def get_unique_sources(
     context_documents: list[Any]
 ) -> list[str]:
-    """Return unique sources from retrieved documents."""
+    """Return unique source names from retrieved documents."""
 
     sources: list[str] = []
     seen: set[str] = set()
@@ -175,6 +204,7 @@ def get_unique_sources(
             sources.append(source)
 
     return sources
+
 @app.route("/", methods=["GET"])
 def home():
     return render_template("chat.html")
@@ -241,9 +271,13 @@ def health():
         {
             "status": "running",
             "model": GROQ_MODEL,
-            "index": INDEX_NAME
+            "index": INDEX_NAME,
+            "embedding": (
+                "sentence-transformers/all-MiniLM-L6-v2"
+            )
         }
     )
+
 if __name__ == "__main__":
     port = int(
         os.environ.get("PORT", 5000)
