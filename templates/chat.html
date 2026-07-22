@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>MediBot | AI Medical Assistant</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+<div class="page-wrapper">
+
+    <div class="chat-container">
+
+        <header class="chat-header">
+
+            <div class="logo-container">
+                <div class="logo">+</div>
+
+                <div>
+                    <h1>MediBot</h1>
+                    <p>AI Medical Information Assistant</p>
+                </div>
+            </div>
+
+            <div class="status">
+                <span class="status-dot"></span>
+                Online
+            </div>
+
+        </header>
+
+        <div class="disclaimer">
+            <strong>Medical disclaimer:</strong>
+            This chatbot provides general medical information only.
+            It does not replace diagnosis or advice from a qualified
+            healthcare professional.
+        </div>
+
+        <main id="messages" class="messages">
+
+            <div class="message-row bot-row">
+
+                <div class="avatar bot-avatar">
+                    +
+                </div>
+
+                <div class="message bot-message">
+                    <p>
+                        Hello! I am MediBot.
+                    </p>
+
+                    <p>
+                        Ask me a general medical question, such as:
+                    </p>
+
+                    <div class="suggestions">
+                        <button
+                            type="button"
+                            class="suggestion"
+                            data-question="What is malaria?"
+                        >
+                            What is malaria?
+                        </button>
+
+                        <button
+                            type="button"
+                            class="suggestion"
+                            data-question="What are the symptoms of diabetes?"
+                        >
+                            Symptoms of diabetes
+                        </button>
+
+                        <button
+                            type="button"
+                            class="suggestion"
+                            data-question="What causes hypertension?"
+                        >
+                            Causes of hypertension
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+
+        <div id="typing-indicator" class="typing-indicator hidden">
+
+            <div class="avatar bot-avatar">
+                +
+            </div>
+
+            <div class="typing-box">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+
+        </div>
+
+        <form id="chat-form" class="chat-form">
+
+            <textarea
+                id="question"
+                name="question"
+                placeholder="Type your medical question..."
+                rows="1"
+                required
+            ></textarea>
+
+            <button
+                type="submit"
+                id="send-button"
+                aria-label="Send message"
+            >
+                <span>Send</span>
+                <span class="send-icon">➤</span>
+            </button>
+
+        </form>
+
+        <footer>
+            Powered by LangChain, Pinecone and Ollama
+        </footer>
+
+    </div>
+
+</div>
+
+<script>
+    const chatForm = document.getElementById("chat-form");
+    const questionInput = document.getElementById("question");
+    const messages = document.getElementById("messages");
+    const sendButton = document.getElementById("send-button");
+    const typingIndicator = document.getElementById("typing-indicator");
+    const suggestionButtons =
+        document.querySelectorAll(".suggestion");
+
+    function scrollToBottom() {
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function createMessage(text, type) {
+        const row = document.createElement("div");
+        row.className =
+            type === "user"
+                ? "message-row user-row"
+                : "message-row bot-row";
+
+        const avatar = document.createElement("div");
+        avatar.className =
+            type === "user"
+                ? "avatar user-avatar"
+                : "avatar bot-avatar";
+
+        avatar.textContent = type === "user" ? "You" : "+";
+
+        const message = document.createElement("div");
+        message.className =
+            type === "user"
+                ? "message user-message"
+                : "message bot-message";
+
+        if (type === "bot") {
+            formatBotAnswer(message, text);
+        } else {
+            message.textContent = text;
+        }
+
+        if (type === "user") {
+            row.appendChild(message);
+            row.appendChild(avatar);
+        } else {
+            row.appendChild(avatar);
+            row.appendChild(message);
+        }
+
+        messages.appendChild(row);
+        scrollToBottom();
+    }
+
+    function createErrorMessage(text) {
+        const row = document.createElement("div");
+        row.className = "message-row bot-row";
+
+        const avatar = document.createElement("div");
+        avatar.className = "avatar error-avatar";
+        avatar.textContent = "!";
+
+        const message = document.createElement("div");
+        message.className = "message error-message";
+        message.textContent = text;
+
+        row.appendChild(avatar);
+        row.appendChild(message);
+
+        messages.appendChild(row);
+        scrollToBottom();
+    }
+
+    function formatBotAnswer(container, text) {
+        const escaped = text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+
+        const formatted = escaped
+            .replace(
+                /^## (.+)$/gm,
+                "<h3>$1</h3>"
+            )
+            .replace(
+                /^\* (.+)$/gm,
+                "<li>$1</li>"
+            )
+            .replace(
+                /^- (.+)$/gm,
+                "<li>$1</li>"
+            )
+            .replace(/\n\n/g, "<br><br>")
+            .replace(/\n/g, "<br>");
+
+        container.innerHTML = formatted;
+    }
+
+    async function submitQuestion(question) {
+        if (!question) {
+            return;
+        }
+
+        createMessage(question, "user");
+
+        questionInput.value = "";
+        questionInput.style.height = "auto";
+
+        sendButton.disabled = true;
+        typingIndicator.classList.remove("hidden");
+
+        try {
+            const response = await fetch("/ask", {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    question: question
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    data.details ||
+                    data.error ||
+                    "Unable to generate an answer."
+                );
+            }
+
+            createMessage(data.answer, "bot");
+
+        } catch (error) {
+            createErrorMessage(
+                "Sorry, I could not generate an answer. " +
+                error.message
+            );
+
+        } finally {
+            typingIndicator.classList.add("hidden");
+            sendButton.disabled = false;
+            questionInput.focus();
+        }
+    }
+
+    chatForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+
+        const question = questionInput.value.trim();
+        submitQuestion(question);
+    });
+
+    suggestionButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+            submitQuestion(button.dataset.question);
+        });
+    });
+
+    questionInput.addEventListener("input", function () {
+        this.style.height = "auto";
+        this.style.height =
+            Math.min(this.scrollHeight, 140) + "px";
+    });
+
+    questionInput.addEventListener("keydown", function (event) {
+        if (
+            event.key === "Enter" &&
+            !event.shiftKey
+        ) {
+            event.preventDefault();
+            chatForm.requestSubmit();
+        }
+    });
+</script>
+
+</body>
+</html>
