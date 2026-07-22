@@ -1,66 +1,70 @@
 import os
+from typing import Any
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
-
 from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import (
-    create_stuff_documents_chain,
-)
+from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_ollama import ChatOllama
 from langchain_pinecone import PineconeVectorStore
+from pinecone import Pinecone
 
 
-# -------------------------------------------------------
-# Load environment variables
-# -------------------------------------------------------
+# ---------------------------------------------------------
+# Application setup
+# ---------------------------------------------------------
 
-load_dotenv()
-
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-
-if not PINECONE_API_KEY:
-    raise ValueError(
-        "PINECONE_API_KEY is missing. "
-        "Please add it to your .env file."
-    )
-
-
-# -------------------------------------------------------
-# Create Flask application
-# -------------------------------------------------------
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 app = Flask(__name__)
 
+INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "medical-chatbot")
+GROQ_MODEL = os.getenv(
+    "GROQ_MODEL",
+    "llama-3.3-70b-versatile"
+)
 
-# -------------------------------------------------------
-# Create embedding model
-# Same embedding model used for your Pinecone index
-# -------------------------------------------------------
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-embeddings = HuggingFaceEmbeddings(
+if not PINECONE_API_KEY:
+    raise ValueError(
+        "PINECONE_API_KEY is missing from the .env file."
+    )
+
+if not GROQ_API_KEY:
+    raise ValueError(
+        "GROQ_API_KEY is missing from the .env file."
+    )
+
+
+# ---------------------------------------------------------
+# Embedding model and Pinecone vector store
+# ---------------------------------------------------------
+
+embedding = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
-
-# -------------------------------------------------------
-# Connect to existing Pinecone index
-# -------------------------------------------------------
-
-index_name = "medical-chatbot"
-
-docsearch = PineconeVectorStore.from_existing_index(
-    index_name=index_name,
-    embedding=embeddings
+pinecone_client = Pinecone(
+    api_key=PINECONE_API_KEY
 )
 
+existing_indexes = pinecone_client.list_indexes().names()
 
-# -------------------------------------------------------
-# Create retriever
-# Same k=6 setting from your trials notebook
-# -------------------------------------------------------
+if INDEX_NAME not in existing_indexes:
+    raise ValueError(
+        f"Pinecone index '{INDEX_NAME}' was not found. "
+        f"Available indexes: {existing_indexes}"
+    )
+
+docsearch = PineconeVectorStore(
+    index_name=INDEX_NAME,
+    embedding=embedding
+)
 
 retriever = docsearch.as_retriever(
     search_type="similarity",
@@ -68,36 +72,30 @@ retriever = docsearch.as_retriever(
 )
 
 
-# -------------------------------------------------------
-# Connect to Ollama
-# Same model settings from your trials notebook
-# -------------------------------------------------------
+# ---------------------------------------------------------
+# Groq model
+# ---------------------------------------------------------
 
-OLLAMA_BASE_URL = os.getenv(
-    "OLLAMA_BASE_URL",
-    "http://localhost:11434"
-)
-
-ChatModel = ChatOllama(
-    model="qwen3:1.7b",
-    base_url=OLLAMA_BASE_URL,
+ChatModel = ChatGroq(
+    model=GROQ_MODEL,
     temperature=0.2,
-    num_predict=700,
-    num_ctx=4096
+    max_tokens=1000,
+    groq_api_key=GROQ_API_KEY
 )
 
 
-# -------------------------------------------------------
-# Medical chatbot system prompt
-# -------------------------------------------------------
+# ---------------------------------------------------------
+# Medical RAG prompt and chain
+# ---------------------------------------------------------
 
 system_prompt = """
 You are a medical information assistant.
 
-Use only the supplied medical context to answer the user's question.
-Do not add unsupported medical facts.
+Use only the supplied medical context to answer the user's
+question. Do not add unsupported medical facts.
 
-Present information using these Markdown headings:
+Present information using these Markdown headings when they
+are relevant to the user's question:
 
 ## Overview
 Give a brief explanation of the disease or condition.
@@ -118,43 +116,32 @@ Describe appropriate prevention or risk-reduction measures.
 Briefly describe general treatment or management information.
 
 ## When to Seek Medical Help
-Mention warning signs that require professional or emergency care.
+Mention warning signs that require professional or emergency
+care.
 
 Rules:
 
-- Keep the response clear and concise.
+- Keep the response clear and useful.
 - Use bullet points where helpful.
 - Do not diagnose the user.
-- Do not prescribe medication or give dosages.
+- Do not prescribe medication or provide dosages.
 - Do not claim prevention is guaranteed.
-- If a section is not covered by the context, write:
+- If information is not covered by the supplied context, say:
   "Not specified in the provided medical document."
-- For serious symptoms, advise consulting a qualified healthcare
-  professional.
-- Do not show internal reasoning.
+- For serious symptoms, advise consulting a qualified
+  healthcare professional or emergency service.
+- Do not reveal internal reasoning.
 
 Medical context:
-
 {context}
 """
-
-
-# -------------------------------------------------------
-# Create prompt template
-# /no_think prevents Qwen from displaying internal thinking
-# -------------------------------------------------------
 
 prompt = ChatPromptTemplate.from_messages(
     [
         ("system", system_prompt),
-        ("human", "/no_think\n{input}")
+        ("human", "{input}")
     ]
 )
-
-
-# -------------------------------------------------------
-# Create RAG chain
-# -------------------------------------------------------
 
 question_answer_chain = create_stuff_documents_chain(
     ChatModel,
@@ -167,55 +154,104 @@ rag_chain = create_retrieval_chain(
 )
 
 
-# -------------------------------------------------------
-# Home page
-# -------------------------------------------------------
+# ---------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------
 
-@app.route("/")
+def extract_user_message() -> str:
+    """Read the user's message from JSON or form data."""
+
+    if request.is_json:
+        data: dict[str, Any] = (
+            request.get_json(silent=True) or {}
+        )
+
+        message = (
+            data.get("message")
+            or data.get("input")
+            or data.get("question")
+            or ""
+        )
+
+    else:
+        message = (
+            request.form.get("message")
+            or request.form.get("input")
+            or request.form.get("question")
+            or ""
+        )
+
+    return str(message).strip()
+
+
+def get_unique_sources(
+    context_documents: list[Any]
+) -> list[str]:
+    """Return unique sources from retrieved documents."""
+
+    sources: list[str] = []
+    seen: set[str] = set()
+
+    for document in context_documents:
+        source = str(
+            document.metadata.get(
+                "source",
+                "Unknown source"
+            )
+        )
+
+        if source not in seen:
+            seen.add(source)
+            sources.append(source)
+
+    return sources
+
+
+# ---------------------------------------------------------
+# Routes
+# ---------------------------------------------------------
+
+@app.route("/", methods=["GET"])
 def home():
     return render_template("chat.html")
 
 
-# -------------------------------------------------------
-# Chat API route
-# -------------------------------------------------------
-
 @app.route("/ask", methods=["POST"])
 def ask():
+    user_message = extract_user_message()
+
+    if not user_message:
+        return jsonify(
+            {
+                "error": "Please enter a medical question."
+            }
+        ), 400
+
     try:
-        data = request.get_json(silent=True)
-
-        if not data:
-            return jsonify(
-                {
-                    "error": "No request data was received."
-                }
-            ), 400
-
-        question = data.get("question", "").strip()
-
-        if not question:
-            return jsonify(
-                {
-                    "error": "Please enter a medical question."
-                }
-            ), 400
-
-        # Same invocation used in the trials notebook
         response = rag_chain.invoke(
             {
-                "input": question
+                "input": user_message
             }
         )
 
         answer = response.get(
             "answer",
-            "No answer was generated."
+            "The chatbot could not generate an answer."
+        )
+
+        context_documents = response.get(
+            "context",
+            []
+        )
+
+        sources = get_unique_sources(
+            context_documents
         )
 
         return jsonify(
             {
-                "answer": answer
+                "answer": answer,
+                "sources": sources
             }
         )
 
@@ -228,33 +264,32 @@ def ask():
             {
                 "error": (
                     "The chatbot could not generate an answer. "
-                    "Please check that Ollama is running."
+                    "Please try again later."
                 ),
                 "details": str(error)
             }
         ), 500
 
 
-# -------------------------------------------------------
-# Health-check route
-# -------------------------------------------------------
-
-@app.route("/health")
+@app.route("/health", methods=["GET"])
 def health():
     return jsonify(
         {
             "status": "running",
-            "model": "qwen3:1.7b",
-            "index": index_name
+            "model": GROQ_MODEL,
+            "index": INDEX_NAME
         }
     )
 
 
-# -------------------------------------------------------
-# Run Flask application
-# -------------------------------------------------------
+# ---------------------------------------------------------
+# Run the Flask application
+# ---------------------------------------------------------
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    port = int(
+        os.environ.get("PORT", 5000)
+    )
 
     app.run(
         host="0.0.0.0",
