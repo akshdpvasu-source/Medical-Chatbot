@@ -11,11 +11,6 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 
-
-# ---------------------------------------------------------
-# Application setup
-# ---------------------------------------------------------
-
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
@@ -39,12 +34,6 @@ if not GROQ_API_KEY:
     raise ValueError(
         "GROQ_API_KEY is missing from the .env file."
     )
-
-
-# ---------------------------------------------------------
-# Embedding model and Pinecone vector store
-# ---------------------------------------------------------
-
 embedding = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
@@ -70,24 +59,12 @@ retriever = docsearch.as_retriever(
     search_type="similarity",
     search_kwargs={"k": 6}
 )
-
-
-# ---------------------------------------------------------
-# Groq model
-# ---------------------------------------------------------
-
 ChatModel = ChatGroq(
     model=GROQ_MODEL,
     temperature=0.2,
     max_tokens=1000,
     groq_api_key=GROQ_API_KEY
 )
-
-
-# ---------------------------------------------------------
-# Medical RAG prompt and chain
-# ---------------------------------------------------------
-
 system_prompt = """
 You are a medical information assistant.
 
@@ -152,12 +129,6 @@ rag_chain = create_retrieval_chain(
     retriever,
     question_answer_chain
 )
-
-
-# ---------------------------------------------------------
-# Helper functions
-# ---------------------------------------------------------
-
 def extract_user_message() -> str:
     """Read the user's message from JSON or form data."""
 
@@ -183,7 +154,6 @@ def extract_user_message() -> str:
 
     return str(message).strip()
 
-
 def get_unique_sources(
     context_documents: list[Any]
 ) -> list[str]:
@@ -205,12 +175,6 @@ def get_unique_sources(
             sources.append(source)
 
     return sources
-
-
-# ---------------------------------------------------------
-# Routes
-# ---------------------------------------------------------
-
 @app.route("/", methods=["GET"])
 def home():
     return render_template("chat.html")
@@ -280,12 +244,6 @@ def health():
             "index": INDEX_NAME
         }
     )
-
-
-# ---------------------------------------------------------
-# Run the Flask application
-# ---------------------------------------------------------
-
 if __name__ == "__main__":
     port = int(
         os.environ.get("PORT", 5000)
