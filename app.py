@@ -71,8 +71,6 @@ if INDEX_NAME not in existing_indexes:
     )
 
 
-# Connect to the already-created Pinecone index.
-# This does not upload the PDF or recreate the vectors.
 
 docsearch = PineconeVectorStore.from_existing_index(
     index_name=INDEX_NAME,
