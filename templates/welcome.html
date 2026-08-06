@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome | Medibot</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='welcome.css') }}">
+
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <div class="card">
+
+            <div class="logo">
+                <i class="fa-solid fa-user-doctor"></i>
+            </div>
+
+            <h1>Welcome to Medibot</h1>
+
+            <h3>Your AI-Powered Medical Assistant</h3>
+
+            <p class="description">
+                Get intelligent, context-aware answers to your medical
+                questions using Retrieval-Augmented Generation (RAG)
+                technology and trusted medical knowledge.
+            </p>
+
+            <div class="features">
+
+                <div class="feature">
+                    <i class="fa-solid fa-brain"></i>
+                    <span>AI Powered</span>
+                </div>
+
+                <div class="feature">
+                    <i class="fa-solid fa-book-medical"></i>
+                    <span>Medical Knowledge</span>
+                </div>
+
+                <div class="feature">
+                    <i class="fa-solid fa-shield-heart"></i>
+                    <span>Secure</span>
+                </div>
+
+            </div>
+
+            <button id="startBtn" onclick="startChat()">
+
+                <span id="btnText">
+                    Start Chat
+                </span>
+
+                <i id="arrow" class="fa-solid fa-arrow-right"></i>
+
+            </button>
+
+            <div id="loader" class="loader">
+
+                <div class="spinner"></div>
+
+                <p>Preparing your medical assistant...</p>
+
+            </div>
+
+            <div class="disclaimer">
+
+                <i class="fa-solid fa-circle-info"></i>
+
+                <p>
+                    Medibot provides AI-generated medical information
+                    for educational purposes only.
+                    It is not a substitute for professional medical advice,
+                    diagnosis, or treatment.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+
+        function startChat() {
+
+            document.getElementById("startBtn").disabled = true;
+
+            document.getElementById("btnText").innerHTML = "Loading...";
+
+            document.getElementById("arrow").style.display = "none";
+
+            document.getElementById("loader").style.display = "flex";
+
+            setTimeout(function () {
+
+                window.location.href = "/chat";
+
+            }, 1500);
+
+        }
+
+    </script>
+
+</body>
+
+</html>

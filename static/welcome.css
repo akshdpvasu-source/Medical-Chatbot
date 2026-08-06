@@ -1,0 +1,334 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Poppins", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #0f172a, #0c4a6e, #0891b2);
+    overflow: hidden;
+}
+
+body::before {
+    content: "";
+    position: absolute;
+    width: 700px;
+    height: 700px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 50%;
+    top: -200px;
+    left: -200px;
+    filter: blur(50px);
+}
+
+body::after {
+    content: "";
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: rgba(0,255,255,0.08);
+    border-radius: 50%;
+    bottom: -200px;
+    right: -200px;
+    filter: blur(60px);
+}
+
+.container{
+    width:100%;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:30px;
+}
+
+.card{
+
+    width:700px;
+    max-width:95%;
+
+    padding:50px;
+
+    border-radius:25px;
+
+    background:rgba(255,255,255,0.10);
+
+    backdrop-filter:blur(15px);
+
+    box-shadow:0 15px 40px rgba(0,0,0,0.3);
+
+    text-align:center;
+
+    border:1px solid rgba(255,255,255,0.15);
+
+    animation:fadeUp 1s ease;
+}
+
+@keyframes fadeUp{
+
+    from{
+        opacity:0;
+        transform:translateY(40px);
+    }
+
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+
+}
+
+.logo{
+
+    width:110px;
+    height:110px;
+
+    margin:auto;
+
+    border-radius:50%;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    background:linear-gradient(135deg,#00c6ff,#00ffb3);
+
+    font-size:48px;
+
+    color:white;
+
+    margin-bottom:30px;
+
+    box-shadow:0 0 35px rgba(0,255,200,.4);
+
+}
+
+h1{
+
+    color:white;
+
+    font-size:42px;
+
+    margin-bottom:10px;
+
+}
+
+h3{
+
+    color:#b9f3ff;
+
+    font-weight:400;
+
+    margin-bottom:25px;
+
+}
+
+.description{
+
+    color:#edf6ff;
+
+    line-height:1.8;
+
+    font-size:17px;
+
+    margin-bottom:35px;
+
+}
+
+.features{
+
+    display:flex;
+
+    justify-content:center;
+
+    flex-wrap:wrap;
+
+    gap:15px;
+
+    margin-bottom:35px;
+
+}
+
+.feature{
+
+    background:rgba(255,255,255,.08);
+
+    padding:15px 22px;
+
+    border-radius:12px;
+
+    color:white;
+
+    display:flex;
+
+    align-items:center;
+
+    gap:10px;
+
+    transition:.3s;
+
+}
+
+.feature:hover{
+
+    transform:translateY(-5px);
+
+    background:rgba(255,255,255,.15);
+
+}
+
+.feature i{
+
+    color:#00ffd5;
+
+}
+
+button{
+
+    border:none;
+
+    outline:none;
+
+    cursor:pointer;
+
+    padding:17px 40px;
+
+    font-size:18px;
+
+    font-weight:600;
+
+    color:white;
+
+    border-radius:50px;
+
+    background:linear-gradient(135deg,#00c6ff,#00ff95);
+
+    transition:.35s;
+
+    box-shadow:0 10px 25px rgba(0,255,200,.35);
+
+}
+
+button:hover{
+
+    transform:scale(1.05);
+
+    box-shadow:0 15px 35px rgba(0,255,200,.5);
+
+}
+
+button i{
+
+    margin-left:10px;
+
+}
+
+.loader{
+
+    display:none;
+
+    justify-content:center;
+
+    align-items:center;
+
+    flex-direction:column;
+
+    margin-top:25px;
+
+    color:white;
+
+}
+
+.spinner{
+
+    width:45px;
+
+    height:45px;
+
+    border:5px solid rgba(255,255,255,.2);
+
+    border-top:5px solid #00ffd5;
+
+    border-radius:50%;
+
+    animation:spin .8s linear infinite;
+
+    margin-bottom:15px;
+
+}
+
+@keyframes spin{
+
+    100%{
+        transform:rotate(360deg);
+    }
+
+}
+
+.disclaimer{
+
+    margin-top:35px;
+
+    background:rgba(255,255,255,.08);
+
+    border-left:5px solid #ffd54f;
+
+    padding:18px;
+
+    border-radius:10px;
+
+    display:flex;
+
+    gap:12px;
+
+    text-align:left;
+
+    color:white;
+
+    font-size:14px;
+
+    line-height:1.6;
+
+}
+
+.disclaimer i{
+
+    color:#ffd54f;
+
+    font-size:22px;
+
+    margin-top:3px;
+
+}
+
+@media(max-width:768px){
+
+    .card{
+
+        padding:35px 25px;
+
+    }
+
+    h1{
+
+        font-size:32px;
+
+    }
+
+    .features{
+
+        flex-direction:column;
+
+    }
+
+    button{
+
+        width:100%;
+
+    }
+
+}
