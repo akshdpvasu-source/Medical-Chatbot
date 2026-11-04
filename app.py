@@ -45,12 +45,6 @@ PINECONE_API_KEY = os.getenv(
 GROQ_API_KEY = os.getenv(
     "GROQ_API_KEY"
 )
-
-HUGGINGFACEHUB_API_TOKEN = os.getenv(
-    "HUGGINGFACEHUB_API_TOKEN"
-)
-
-
 if not PINECONE_API_KEY:
     raise ValueError(
         "PINECONE_API_KEY is missing from "
@@ -62,25 +56,11 @@ if not GROQ_API_KEY:
         "GROQ_API_KEY is missing from "
         "the environment variables."
     )
-
-if not HUGGINGFACEHUB_API_TOKEN:
-    raise ValueError(
-        "HUGGINGFACEHUB_API_TOKEN is missing "
-        "from the environment variables."
-    )
-
-
-embedding = HuggingFaceEndpointEmbeddings(
-    model=(
-        "sentence-transformers/"
-        "all-MiniLM-L6-v2"
-    ),
-    task="feature-extraction",
-    huggingfacehub_api_token=(
-        HUGGINGFACEHUB_API_TOKEN
-    ),
+embedding = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    model_kwargs={"device": "cpu"},
+    encode_kwargs={"normalize_embeddings": False},
 )
-
 
 pinecone_client = Pinecone(
     api_key=PINECONE_API_KEY
